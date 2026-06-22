@@ -1,0 +1,38 @@
+{
+  "person_example": {
+    "is_person": true,
+    "features": {
+      "samjeong": {
+        "upper": 0.1508,
+        "middle": 0.4084,
+        "lower": 0.4408
+      },
+      "ogwan": {
+        "eye_length_ratio": 0.211,
+        "interocular_ratio": 0.2571,
+        "nose_width_ratio": 0.3002,
+        "nose_length_ratio": 0.2819,
+        "mouth_width_ratio": 0.4752,
+        "brow_eye_span_ratio": 0.135
+      },
+      "face_shape_ratio": 1.1834,
+      "symmetry": 0.9813,
+      "pose": {
+        "yaw_balance": 0.9227,
+        "roll_deg": 3.06
+      },
+      "geometry_px": {
+        "face_width": 88.9,
+        "face_height": 105.2,
+        "image_w": 512,
+        "image_h": 512
+      }
+    },
+    "confidence": "high",
+    "notes": []
+  },
+  "non_person_example": {
+    "is_person": false,
+    "reason": "얼굴이 검출되지 않음(사람 아님 또는 얼굴 미포함)"
+  }
+}
