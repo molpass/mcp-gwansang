@@ -82,6 +82,20 @@ def decode_base64_image(data: str) -> bytes:
     return base64.b64decode(s)
 
 
+def read_image_input(image: str) -> bytes:
+    """image 인자 → 바이트. 헤르메스 게이트웨이는 '바이트는 캐시 저장, 도구엔 경로' 관습이라
+    로컬 파일 경로도 받는다. 순서: (1) 존재하는 로컬 파일 경로 → 파일 바이트
+    (2) data-URI / 순수 base64 → 디코드. base64는 길고 슬래시·null이 없어 경로 오인 위험 없음
+    (긴 문자열은 isfile False 또는 path-too-long으로 자연히 (2)로 폴백)."""
+    s = image.strip()
+    # 1) 로컬 파일 경로 — 짧고(경로 길이 한계 내) 실재하는 일반 파일일 때만.
+    if len(s) < 4096 and os.path.isfile(s):
+        with open(s, "rb") as f:
+            return f.read()
+    # 2) data-URI / base64
+    return decode_base64_image(s)
+
+
 def _dist(a, b) -> float:
     return math.hypot(a[0] - b[0], a[1] - b[1])
 

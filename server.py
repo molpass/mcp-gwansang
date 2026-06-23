@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
 
-from face_core import analyze, decode_base64_image
+from face_core import analyze, read_image_input
 
 mcp = FastMCP("gwansang")
 
@@ -20,7 +20,7 @@ def analyze_face(image: str, include_overlay: bool = False) -> dict:
     """사진에서 결정론 얼굴 피처를 추출한다(해석 없음 — 수치만).
 
     Args:
-        image: 얼굴 사진. data URI(`data:image/jpeg;base64,...`) 또는 순수 base64 문자열.
+        image: 얼굴 사진. 로컬 파일 경로 / data URI(`data:image/jpeg;base64,...`) / 순수 base64.
         include_overlay: True면 사용 랜드마크를 찍은 검증용 PNG(base64)를 함께 반환.
 
     Returns:
@@ -31,11 +31,11 @@ def analyze_face(image: str, include_overlay: bool = False) -> dict:
         ※ 이 값들은 해석이 아니라 측정치다. 관상 의미 부여는 호출한 AI가 한다.
     """
     if not isinstance(image, str) or not image.strip():
-        return {"is_person": False, "reason": "image(base64)가 비어 있음"}
+        return {"is_person": False, "reason": "image(경로 또는 base64)가 비어 있음"}
     try:
-        raw = decode_base64_image(image)
+        raw = read_image_input(image)
     except Exception as e:  # noqa: BLE001 — 입력 오류를 명확 메시지로
-        return {"is_person": False, "reason": f"base64 디코드 실패: {e}"}
+        return {"is_person": False, "reason": f"이미지 입력 처리 실패: {e}"}
     return analyze(raw, overlay=include_overlay)
 
 
