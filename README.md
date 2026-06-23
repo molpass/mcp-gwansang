@@ -4,13 +4,13 @@
 SATI 패턴의 **손발(추출)** 만 담당한다. **관상 해석·점수·운세는 만들지 않는다(AI 몫).**
 
 ## 원칙
-- **외부 API 0.** 전부 로컬(MediaPipe Face Mesh, Apache-2.0). 사진을 어떤 클라우드로도 보내지 않는다.
+- **외부 API 0.** 전부 로컬(MediaPipe FaceLandmarker + 발제선 보정용 selfie_multiclass 세그멘테이션, Apache-2.0). 사진을 어떤 클라우드로도 보내지 않는다.
 - **순수 추출.** 三停/五官 등 관상 *부위명*을 키로 쓰지만 의미 부여는 안 한다 — 측정치(비율·각도)만 반환.
 - **단일 tool · 단일 호출.** 한 번에 완전한 피처를 돌려줘 소형 모델의 다중 tool 호출을 피한다.
 
 ## tool
 ### `analyze_face(image, include_overlay=False)`
-- `image`: 얼굴 사진. data URI(`data:image/jpeg;base64,...`) 또는 순수 base64.
+- `image`: 얼굴 사진. 로컬 파일 경로 / data URI(`data:image/jpeg;base64,...`) / 순수 base64.
 - `include_overlay`: True면 사용 랜드마크를 찍은 검증용 PNG(base64) 동봉(텍스트 없음 — CJK 폰트 불필요).
 
 #### 반환(JSON)
@@ -23,21 +23,24 @@ SATI 패턴의 **손발(추출)** 만 담당한다. **관상 해석·점수·운
 {
   "is_person": true,
   "features": {
-    "samjeong": { "upper": 0.33, "middle": 0.34, "lower": 0.33 },
+    "samjeong": { "upper": 0.34, "middle": 0.30, "lower": 0.36 },
+    "samjeong_meta": { "upper_raw": 0.17, "hairline_estimated": true, "hairline_method": "segment" },
     "ogwan": {
-      "eye_length_ratio": 0.22, "interocular_ratio": 0.21,
-      "nose_width_ratio": 0.27, "nose_length_ratio": 0.26,
-      "mouth_width_ratio": 0.36, "brow_eye_span_ratio": 0.07
+      "eye_length_ratio": 0.18, "interocular_ratio": 0.25,
+      "nose_width_ratio": 0.27, "nose_length_ratio": 0.19,
+      "mouth_width_ratio": 0.39, "brow_eye_span_ratio": 0.11
     },
-    "face_shape_ratio": 1.38,
-    "symmetry": 0.96,
-    "pose": { "yaw_balance": 0.97, "roll_deg": -1.2 },
-    "geometry_px": { "face_width": 612.0, "face_height": 845.0, "image_w": 1024, "image_h": 1024 }
+    "face_shape_ratio": 1.46,
+    "symmetry": 0.94,
+    "pose": { "yaw_balance": 0.87, "roll_deg": -9.5 },
+    "geometry_px": { "face_width": 79.4, "face_height": 115.6, "face_height_raw": 92.3, "image_w": 512, "image_h": 640 }
   },
   "confidence": "high",
   "notes": []
 }
 ```
+**발제선(髮際線) 보정**: 랜드마크 메시 최상단(idx 10)은 실제 발제선보다 보통 아래라 上停이 과소측정된다(전형 정면 검증 7/7). 세그멘테이션으로 정중선의 머리카락↔이마 경계를 잡아 上停·`face_height`를 재계산한다(높이 정규화 피처도 함께 정상화). `samjeong_meta.hairline_method`: `segment`(보정 성공) | `fallback`(대머리·이마 가림·세그 실패 → 메시-top 회귀, `hairline_estimated:false`, `notes`에 안내·上停 축만 저신뢰). `upper_raw`는 보정 전 값(진위검증·해석층 비교용). `face_height_raw`는 보정 전 높이.
+
 `confidence: "low"`면 `notes`에 사유(측면·흐림·작은 얼굴·기울어짐). v0은 고신뢰 코어만 — 十二宫 좌표매핑·气색·귀(耳)는 제외(후속).
 
 ## 실행

@@ -13,7 +13,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from face_core import analyze  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-FACE = os.path.join(HERE, "..", "tests", "assets", "face_sample.png")
+# 전형 정면 초상(발제선 보정이 上停을 정상화하는 케이스) — post-fix 대표 샘플
+FACE = os.path.join(HERE, "..", "tests", "assets", "face_typical.png")
 
 
 def main():

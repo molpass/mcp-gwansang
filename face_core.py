@@ -19,8 +19,11 @@ import mediapipe as mp
 from mediapipe.tasks import python as mp_tasks
 from mediapipe.tasks.python import vision as mp_vision
 
-_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "face_landmarker.task")
+_ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
+_MODEL_PATH = os.path.join(_ASSETS, "face_landmarker.task")
+_SEG_MODEL_PATH = os.path.join(_ASSETS, "selfie_multiclass_256x256.tflite")  # 발제선 보정용(로컬·오프라인)
 _landmarker = None  # 모델 로드 1회 재사용
+_segmenter = None
 
 
 def _get_landmarker():
@@ -33,6 +36,18 @@ def _get_landmarker():
         )
         _landmarker = mp_vision.FaceLandmarker.create_from_options(opts)
     return _landmarker
+
+
+def _get_segmenter():
+    global _segmenter
+    if _segmenter is None:
+        opts = mp_vision.ImageSegmenterOptions(
+            base_options=mp_tasks.BaseOptions(model_asset_path=_SEG_MODEL_PATH),
+            running_mode=mp_vision.RunningMode.IMAGE,
+            output_category_mask=True,
+        )
+        _segmenter = mp_vision.ImageSegmenter.create_from_options(opts)
+    return _segmenter
 
 # ── 사용 랜드마크 인덱스(468 mesh). 값에 직접 쓰는 점만 명시 — 검증/오버레이 대상. ──
 # 三停 경계
@@ -63,6 +78,40 @@ MIN_FACE_PX = 90.0       # 얼굴 세로 픽셀 하한(미만이면 저신뢰)
 BLUR_MIN = 60.0          # 라플라시안 분산 하한(미만이면 흐림)
 YAW_BALANCE_MIN = 0.80   # 좌우 반폭 비(미만이면 측면 의심)
 ROLL_MAX_DEG = 12.0      # 기울기 상한
+
+# 발제선(髮際線) 보정 — selfie_multiclass 세그멘테이션 클래스 인덱스
+_HAIR_CLASS = 1          # 머리카락
+_SKIN_CLASS = 3          # 얼굴 피부
+
+
+def _estimate_hairline(mp_image, w: int, h: int, midx: int, brow_y: float):
+    """정중선에서 머리카락↔이마피부 경계(발제선)를 찾는다.
+
+    랜드마크 10번(메시 이마 최상단)은 실제 발제선보다 보통 아래라 上停이 과소측정된다
+    (전형 정면 검증 7/7). 세그멘테이션으로 실제 발제선을 잡아 보정한다.
+
+    반환: 성공 → (hairline_y, "segment"). 실패(세그 불가·대머리·이마 가림·앞머리) → (None, "fallback").
+    실패는 모델 부재·런타임 오류까지 흡수해 폴백으로 회귀(클론이 모델 미보유여도 동작).
+    """
+    try:
+        mask = _get_segmenter().segment(mp_image).category_mask.numpy_view().reshape(h, w)
+    except Exception:  # noqa: BLE001
+        return None, "fallback"
+    lo = max(0, midx - 3)
+    hi = min(w, midx + 4)
+    band = mask[:, lo:hi]
+    seen_skin = False
+    y = int(brow_y) - 1
+    while y > 0:
+        row = band[y]
+        vals, counts = np.unique(row, return_counts=True)
+        c = int(vals[int(np.argmax(counts))])  # 정중선 밴드의 최빈 클래스
+        if c == _SKIN_CLASS:
+            seen_skin = True
+        elif c == _HAIR_CLASS and seen_skin:
+            return float(y + 1), "segment"  # 이마피부 위로 머리카락이 시작되는 경계 = 발제선
+        y -= 1
+    return None, "fallback"
 
 
 def _decode_image(image_bytes: bytes) -> Optional[np.ndarray]:
@@ -138,12 +187,21 @@ def analyze(image_bytes: bytes, overlay: bool = False) -> dict:
     cheek_l, cheek_r = P(IDX_CHEEK_L), P(IDX_CHEEK_R)
 
     face_width = abs(cheek_r[0] - cheek_l[0])
-    face_height = abs(chin[1] - top[1])
-    if face_width < 1 or face_height < 1:
+    face_height_raw = abs(chin[1] - top[1])  # 메시-top 기준(보정 전)
+    if face_width < 1 or face_height_raw < 1:
         return {"is_person": False, "reason": "얼굴 기하 산출 불가(퇴화된 좌표)"}
 
-    # ── 三停(세로 3등분 비율) ──
-    upper = brow[1] - top[1]
+    # ── 발제선 보정 ──
+    # 발제선 추정 성공 시 上停·face_height의 상단 기준을 메시-top → 발제선으로 교체.
+    # 높이 정규화 피처(face_shape_ratio·nose_length_ratio·brow_eye_span_ratio)가 함께 정상화된다.
+    midx = int(round((top[0] + brow[0]) / 2))
+    hairline_y, hairline_method = _estimate_hairline(mp_image, w, h, midx, brow[1])
+    hairline_estimated = hairline_method == "segment"
+    top_y = hairline_y if hairline_estimated else top[1]
+    face_height = abs(chin[1] - top_y)
+
+    # ── 三停(세로 3등분 비율) — 발제선 기준 ──
+    upper = brow[1] - top_y
     mid = nose_tip[1] - brow[1]
     lower = chin[1] - nose_tip[1]
     total = upper + mid + lower
@@ -151,6 +209,14 @@ def analyze(image_bytes: bytes, overlay: bool = False) -> dict:
         "upper": _round(upper / total),
         "middle": _round(mid / total),
         "lower": _round(lower / total),
+    }
+    # 上停 raw(옛 메시-top 기준) — 핑거프린트·진위검증·해석층 비교용 보존
+    upper_raw = brow[1] - top[1]
+    total_raw = upper_raw + mid + lower
+    samjeong_meta = {
+        "upper_raw": _round(upper_raw / total_raw),
+        "hairline_estimated": hairline_estimated,
+        "hairline_method": hairline_method,
     }
 
     # ── 五官 비율(얼굴폭/높이 대비) ──
@@ -201,28 +267,35 @@ def analyze(image_bytes: bytes, overlay: bool = False) -> dict:
     blur = float(cv2.Laplacian(cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY), cv2.CV_64F).var()) if roi.size else 0.0
 
     # ── 신뢰도 게이트(저신뢰 사유 수집) ──
-    notes = []
-    if face_height < MIN_FACE_PX:
-        notes.append(f"얼굴이 작음({int(face_height)}px<{int(MIN_FACE_PX)}) — 피처 신뢰 낮음")
+    # 이미지 품질 게이트는 confidence(전역)를 좌우한다. 발제선 폴백은 上停 축만 저신뢰이므로
+    # samjeong_meta로 알리고 안내 note만 덧붙인다 — 정상 사진이면 五官·대칭 해석은 유효하게 둔다.
+    quality_notes = []
+    if face_height_raw < MIN_FACE_PX:
+        quality_notes.append(f"얼굴이 작음({int(face_height_raw)}px<{int(MIN_FACE_PX)}) — 피처 신뢰 낮음")
     if blur < BLUR_MIN:
-        notes.append(f"흐림(라플라시안 분산 {int(blur)}<{int(BLUR_MIN)})")
+        quality_notes.append(f"흐림(라플라시안 분산 {int(blur)}<{int(BLUR_MIN)})")
     if yaw_balance < YAW_BALANCE_MIN:
-        notes.append(f"측면 의심(좌우 반폭비 {yaw_balance}<{YAW_BALANCE_MIN})")
+        quality_notes.append(f"측면 의심(좌우 반폭비 {yaw_balance}<{YAW_BALANCE_MIN})")
     if abs(roll_deg) > ROLL_MAX_DEG:
-        notes.append(f"기울어짐(roll {roll_deg}°)")
-    confidence = "low" if notes else "high"
+        quality_notes.append(f"기울어짐(roll {roll_deg}°)")
+    confidence = "low" if quality_notes else "high"
+    notes = list(quality_notes)
+    if not hairline_estimated:
+        notes.append("발제선 추정 실패 — 상정(上停) 보정 불가(이마 상단 기준), 상정축 저신뢰")
 
     result = {
         "is_person": True,
         "features": {
-            "samjeong": samjeong,          # 三停 비율(상/중/하)
+            "samjeong": samjeong,          # 三停 비율(상/중/하) — 上停은 발제선 보정 반영
+            "samjeong_meta": samjeong_meta,  # upper_raw(보정 전)·발제선 추정 여부·방식
             "ogwan": ogwan,                # 五官 비율
             "face_shape_ratio": face_shape_ratio,
             "symmetry": symmetry,          # 0~1 (1=완전대칭)
             "pose": {"yaw_balance": yaw_balance, "roll_deg": roll_deg},
             "geometry_px": {
                 "face_width": _round(face_width, 1),
-                "face_height": _round(face_height, 1),
+                "face_height": _round(face_height, 1),       # 발제선 보정 기준
+                "face_height_raw": _round(face_height_raw, 1),  # 메시-top 기준(보정 전)
                 "image_w": w, "image_h": h,
             },
         },

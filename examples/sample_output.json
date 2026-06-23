@@ -3,29 +3,35 @@
     "is_person": true,
     "features": {
       "samjeong": {
-        "upper": 0.1508,
-        "middle": 0.4084,
-        "lower": 0.4408
+        "upper": 0.3409,
+        "middle": 0.2953,
+        "lower": 0.3638
+      },
+      "samjeong_meta": {
+        "upper_raw": 0.1745,
+        "hairline_estimated": true,
+        "hairline_method": "segment"
       },
       "ogwan": {
-        "eye_length_ratio": 0.211,
-        "interocular_ratio": 0.2571,
-        "nose_width_ratio": 0.3002,
-        "nose_length_ratio": 0.2819,
-        "mouth_width_ratio": 0.4752,
-        "brow_eye_span_ratio": 0.135
+        "eye_length_ratio": 0.18,
+        "interocular_ratio": 0.2529,
+        "nose_width_ratio": 0.2691,
+        "nose_length_ratio": 0.1871,
+        "mouth_width_ratio": 0.3933,
+        "brow_eye_span_ratio": 0.1058
       },
-      "face_shape_ratio": 1.1834,
-      "symmetry": 0.9813,
+      "face_shape_ratio": 1.4564,
+      "symmetry": 0.943,
       "pose": {
-        "yaw_balance": 0.9227,
-        "roll_deg": 3.06
+        "yaw_balance": 0.8722,
+        "roll_deg": -9.49
       },
       "geometry_px": {
-        "face_width": 88.9,
-        "face_height": 105.2,
+        "face_width": 79.4,
+        "face_height": 115.6,
+        "face_height_raw": 92.3,
         "image_w": 512,
-        "image_h": 512
+        "image_h": 640
       }
     },
     "confidence": "high",
