@@ -51,23 +51,49 @@ SATI 패턴의 **손발(추출)** 만 담당한다. **관상 해석·점수·운
 ```
 MCP 등록(헤르메스): command=`<repo>/venv/bin/python`, args=`["<repo>/server.py"]`, env `{}`.
 
-## 헤르메스 SKILL 설치 (해석층)
-이 레포는 **손발(추출 MCP)** 과 **지식(해석 SKILL)** 을 함께 버전 관리한다. 클론 한 번으로 둘 다 따라온다.
-`skill/SKILL.md`는 측정치를 재현 가능·전거 있는 관상 해석으로 옮기는 규율(측정→해석 매핑·전거 인용·도구 실패 시 추측 차단)을 담은 **작성된 정적 산출물**이다. 헤르메스/모델이 런타임에 스스로 해석을 만들지 않는다.
+## 왜 SKILL을 함께 주는가 (손발 + 지식)
+이 레포는 **손발(추출 MCP)** 과 **지식(해석 SKILL)** 을 한 벌로 버전 관리한다. 클론 한 번에 둘 다 따라온다.
 
-설치(회사·아슬 동일 — 기기 비의존):
+MCP만 쓰면 모델이 측정 수치를 **즉흥 해석**한다 — 재현성도 전거도 없고, 도구가 실패하면 사진을 눈으로 보고 지어내는(환각) 모드로 샌다. 그래서 해석을 `skill/`의 **정적 SKILL**로 고정한다:
+- **① 전거 인용** — 모든 해석을 측정 키·값에 묶는다(못 묶으면 말하지 않음).
+- **② 추측 차단** — 도구 실패·결과 잘림이면 해석 0줄, 재촬영 안내(비전 추측 금지).
+- **③ 재현성** — 같은 사진 → 같은 측정 → 같은 해석 틀.
+
+### 2변형 — 용도에 맞게 하나를 깐다
+| 변형 | 용도 | 표현 |
+|---|---|---|
+| `skill/SKILL.casual.md` | 게스트·운세 경험 | 쉬운 일상어만 — 숫자·전문용어·한자 표면 0 |
+| `skill/SKILL.expert.md` | 학습·전문가·관리자 | 마의상법(麻衣相法) 전거·수치 노출 |
+
+안티-환각 규율(전거 인용·추측 차단·미측정 부위 언급 금지·면책)은 **두 변형 공통**, 차이는 표현층뿐. 어느 환경에 무엇을 깔지는 배포 선택이다.
+
+### 설치 (회사·홈 동일 — 기기 비의존)
 1. 레포 클론 + venv + requirements (위 [실행](#실행)).
 2. MCP 등록 (위 — `command=venv/python`, `args=[server.py]`).
-3. `skill/SKILL.md`를 헤르메스 스킬 디렉터리에 복사:
+3. 용도에 맞는 변형을 헤르메스 스킬 디렉터리에 `SKILL.md`로 복사:
    ```bash
-   mkdir -p ~/.hermes/skills/gwansang
-   cp skill/SKILL.md ~/.hermes/skills/gwansang/SKILL.md
-   # 레포 추적을 유지하려면 심볼릭 링크:
-   # ln -sf "$(pwd)/skill/SKILL.md" ~/.hermes/skills/gwansang/SKILL.md
+   mkdir -p <skills>/gwansang
+   cp skill/SKILL.casual.md  <skills>/gwansang/SKILL.md   # 게스트용
+   # 또는
+   cp skill/SKILL.expert.md  <skills>/gwansang/SKILL.md   # 전문가용
    ```
+   (`<skills>`는 해당 프로필의 스킬 디렉터리.)
 4. 게이트웨이 재시작으로 스킬 로드.
 
-## 프라이버시
-사진은 메모리에서 MediaPipe로만 처리하고 디스크/네트워크로 내보내지 않는다. 저장 없음.
+## 프라이버시·면책
+사진은 메모리에서 MediaPipe로만 처리하고 디스크/네트워크로 내보내지 않는다. **저장·전송 없음.** 관상은 얼굴 비율 측정에 기반한 **참고용 풀이**이며 운명론이 아니다(과학적 사실 아님).
 
-MIT · molpass
+## About / 제작
+**Hermes Agent용 MCP** — molpass의 바이브 코딩(vibe coding) 프로젝트.
+
+- 아이디어·방향: **molpass (이정훈)** · https://zeolinex.com
+- 기획: **Claude (Chat)**
+- 개발: **Claude Code**
+
+같은 모음:
+- [mcp-saju](https://github.com/molpass/mcp-saju) · [mcp-qr](https://github.com/molpass/mcp-qr) · [mcp-biorhythm](https://github.com/molpass/mcp-biorhythm) · [mcp-astrology](https://github.com/molpass/mcp-astrology) · [mcp-ziwei](https://github.com/molpass/mcp-ziwei) · [mcp-numerology](https://github.com/molpass/mcp-numerology) · [mcp-liuren](https://github.com/molpass/mcp-liuren) · [mcp-qimen](https://github.com/molpass/mcp-qimen) · [mcp-taiyi](https://github.com/molpass/mcp-taiyi) · [mcp-weather](https://github.com/molpass/mcp-weather) · [mcp-newsfeed](https://github.com/molpass/mcp-newsfeed) · [mcp-bible](https://github.com/molpass/mcp-bible)
+- **mcp-gwansang** (이 repo)
+
+## License
+MIT (코드) — molpass. 모델·데이터 출처:
+- MediaPipe **FaceLandmarker** · **Selfie Multiclass Segmentation** (Google) — Apache-2.0. 모델은 로컬 동봉, 오프라인 추론.
